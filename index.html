@@ -87,7 +87,7 @@
     table { width: 100%; border-collapse: collapse; min-width: 700px; }
     th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid rgba(0,0,0,0.05); transition: background 0.3s; }
     th { color: var(--text); font-weight: 700; background: rgba(255,255,255,0.6); }
-    .row-processed { background-color: rgba(255, 235, 59, 0.4) !important; } /* Nền vàng khi tick */
+    .row-processed { background-color: rgba(255, 235, 59, 0.4) !important; } 
 
     .hero {
       display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 40px;
@@ -143,7 +143,8 @@
     
     .product-card { padding: 16px; display: flex; flex-direction: column; gap: 12px; transition: transform 0.3s; }
     .product-card:hover { transform: translateY(-5px); }
-    .product-img { width: 100%; height: 200px; border-radius: 16px; object-fit: cover; background: #ddd; }
+    /* Cursor pointer cho ảnh để thể hiện có thể click */
+    .product-img { width: 100%; height: 200px; border-radius: 16px; object-fit: cover; background: #ddd; cursor: pointer; }
     .product-info h4 { margin: 0; font-size: 18px; }
     .product-price { font-size: 18px; font-weight: 800; color: var(--blue); margin: 5px 0; }
     .product-address { font-size: 13px; color: var(--muted); }
@@ -161,7 +162,7 @@
 
     .modal-overlay {
       position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(0,0,0,0.4); backdrop-filter: blur(8px);
+      background: rgba(0,0,0,0.5); backdrop-filter: blur(8px);
       display: none; place-items: center; z-index: 100; padding: 20px;
     }
     .modal-overlay.active { display: grid; }
@@ -170,7 +171,7 @@
       padding: 30px; border-radius: 24px; box-shadow: var(--shadow); position: relative;
     }
     .close-modal {
-      position: absolute; top: 15px; right: 20px; font-size: 24px; cursor: pointer; color: var(--muted); background: none; border: none;
+      position: absolute; top: 15px; right: 20px; font-size: 24px; cursor: pointer; color: var(--muted); background: none; border: none; z-index: 10;
     }
     
     .slider-wrapper { position: relative; display: flex; align-items: center; }
@@ -180,6 +181,12 @@
     }
     .img-slider::-webkit-scrollbar { display: none; }
     .img-slider img { width: 100%; max-height: 350px; flex-shrink: 0; object-fit: cover; border-radius: 16px; scroll-snap-align: center; cursor: zoom-in; }
+    
+    /* Lightbox Slider Styles */
+    #lightboxModal .slider-wrapper-fullscreen {
+      width: 100%; height: 100%; position: relative; display: flex; align-items: center; justify-content: center;
+    }
+    #lightboxImg { max-width: 90%; max-height: 85vh; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); object-fit: contain; }
     .slider-btn {
       position: absolute; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.8); border: none; width: 40px; height: 40px;
       border-radius: 50%; font-size: 20px; cursor: pointer; z-index: 10; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.1); transition: 0.3s;
@@ -187,8 +194,10 @@
     .slider-btn:hover { background: white; }
     .slider-btn.prev { left: -15px; }
     .slider-btn.next { right: -15px; }
-
-    #lightboxImg { max-width: 90%; max-height: 90vh; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
+    
+    #lightboxModal .slider-btn { width: 55px; height: 55px; font-size: 26px; }
+    #lightboxModal .slider-btn.prev { left: 40px; }
+    #lightboxModal .slider-btn.next { right: 40px; }
     
     .form-group { margin-bottom: 15px; }
     .form-group label { display: block; margin-bottom: 5px; font-weight: 600; font-size: 14px;}
@@ -205,22 +214,24 @@
     }
     .hidden { display: none !important; }
 
-    /* ========================================= */
     /* RESPONSIVE CHO ĐIỆN THOẠI & MÀN HÌNH NHỎ */
-    /* ========================================= */
     @media (max-width: 768px) {
       .site { width: calc(100% - 20px); padding: 10px 0 40px; }
       header { flex-direction: column; gap: 15px; text-align: center; }
       
       .hero { grid-template-columns: 1fr; padding: 25px 20px; text-align: center; gap: 20px; }
-      .hero-actions { flex-direction: column; } /* Xếp dọc card Mua/Thuê */
+      .hero-actions { flex-direction: column; } 
       .hero-img-wrap img { max-width: 80%; }
       
-      .main-content { grid-template-columns: 1fr; } /* Đưa thanh bộ lọc lên trên sản phẩm */
+      .main-content { grid-template-columns: 1fr; }
       .sidebar { padding: 15px; }
       
       .modal-content { padding: 20px; }
-      .stat-grid { grid-template-columns: 1fr 1fr; } /* Dashboard 2 cột trên đt */
+      .stat-grid { grid-template-columns: 1fr 1fr; }
+      
+      #lightboxModal .slider-btn { width: 40px; height: 40px; font-size: 20px; }
+      #lightboxModal .slider-btn.prev { left: 10px; }
+      #lightboxModal .slider-btn.next { right: 10px; }
     }
   </style>
 </head>
@@ -254,7 +265,7 @@
       <table>
         <thead>
           <tr>
-            <th style="text-align: center;">Trạng thái</th> <!-- Thêm cột trạng thái -->
+            <th style="text-align: center;">Trạng thái</th>
             <th>Họ và Tên</th>
             <th>Số Điện Thoại</th>
             <th>Loại (Mua/Thuê)</th>
@@ -292,7 +303,7 @@
     </div>
   </section>
 
-  <div class="main-content">
+  <div class="main-content" id="productSection">
     <aside class="sidebar glass">
       <h3>Khám phá nhu cầu</h3>
       <div class="filter-group">
@@ -337,9 +348,14 @@
   </div>
 </div>
 
+<!-- Màn hình Lightbox phóng to ảnh (Đã thêm nút lướt ảnh) -->
 <div class="modal-overlay" id="lightboxModal" style="z-index: 200;" onclick="closeModal('lightboxModal')">
-  <button class="close-modal" style="color:white; right: 30px; top: 30px;">&times;</button>
-  <img id="lightboxImg" src="" onclick="event.stopPropagation()">
+  <button class="close-modal" style="color:white; right: 30px; top: 30px; z-index:201;">&times;</button>
+  <div class="slider-wrapper-fullscreen" onclick="event.stopPropagation()">
+    <button class="slider-btn prev" id="lightboxPrev" onclick="navigateLightbox(-1)">&#10094;</button>
+    <img id="lightboxImg" src="">
+    <button class="slider-btn next" id="lightboxNext" onclick="navigateLightbox(1)">&#10095;</button>
+  </div>
 </div>
 
 <div class="modal-overlay" id="detailModal">
@@ -407,6 +423,7 @@
   ];
   let currentFilterType = 'Mua'; 
   let currentOrderProduct = null;
+  let currentLightboxIndex = 0; 
   let isAdmin = localStorage.getItem('isAdmin') === 'true';
   let uploadedTempImages = []; 
   let localOrdersList = [];
@@ -433,14 +450,29 @@
     renderProducts(); 
   }
 
+  // TÍNH NĂNG ĐẾM LƯỢT TRUY CẬP DỰA TRÊN IP
   async function recordVisit() {
     let visited = false;
     try { visited = sessionStorage.getItem('visited'); } catch (e) {}
-    if (!visited && supabaseClient) {
+    if (visited) return; 
+
+    if (supabaseClient) {
       try {
-        await supabaseClient.from('page_visits').insert([{}]);
+        // Lấy IP của người dùng qua API miễn phí ipify
+        const res = await fetch('https://api.ipify.org?format=json');
+        const data = await res.json();
+        const userIp = data.ip;
+
+        // Kiểm tra xem IP này đã từng vào web chưa để lọc trùng
+        const { data: existingVisit } = await supabaseClient.from('page_visits').select('id').eq('ip_address', userIp).limit(1);
+        
+        if (!existingVisit || existingVisit.length === 0) {
+          // Ghi nhận IP mới vào CSDL
+          await supabaseClient.from('page_visits').insert([{ ip_address: userIp }]);
+        }
+        
         try { sessionStorage.setItem('visited', 'true'); } catch (e) {}
-      } catch (err) {}
+      } catch (err) { console.warn("Lỗi ghi nhận IP:", err); }
     }
   }
 
@@ -449,6 +481,11 @@
     document.getElementById('cardMua').classList.toggle('active', mode === 'Mua');
     document.getElementById('cardThue').classList.toggle('active', mode === 'Thuê');
     renderProducts();
+
+    // TỰ ĐỘNG CUỘN XUỐNG KHI Ở CHẾ ĐỘ MOBILE
+    if (window.innerWidth <= 768) {
+      document.getElementById('productSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   }
 
   function renderProducts() {
@@ -471,8 +508,10 @@
       const coverImg = (p.images && p.images.length > 0) ? p.images[0] : 'https://via.placeholder.com/400x300?text=No+Image';
       const card = document.createElement('div');
       card.className = 'product-card glass';
+      
+      // ẤN VÀO ẢNH SẼ MỞ CHI TIẾT SẢN PHẨM (onclick="showDetail(${p.id})")
       card.innerHTML = `
-        <img src="${coverImg}" class="product-img">
+        <img src="${coverImg}" class="product-img" onclick="showDetail(${p.id})">
         <div class="product-info">
           <h4>${p.name}</h4>
           <div class="product-price">${formatPrice(p.price)}</div>
@@ -505,18 +544,54 @@
     document.getElementById('detailAddress').innerText = "📍 Vị trí: " + (p.district || '');
     document.getElementById('detailDesc').innerText = p.description || '';
     
+    currentOrderProduct = p; // Phải set currentOrderProduct trước khi render ảnh
     const slider = document.getElementById('detailSlider');
     slider.innerHTML = '';
+    
     if(p.images && p.images.length > 0) {
-      p.images.forEach(imgUrl => {
-        const img = document.createElement('img'); img.src = imgUrl; img.onclick = () => openLightbox(imgUrl); slider.appendChild(img);
+      p.images.forEach((imgUrl, idx) => {
+        const img = document.createElement('img'); 
+        img.src = imgUrl; 
+        img.onclick = () => openLightbox(idx); // Truyền vị trí ảnh
+        slider.appendChild(img);
       });
     }
-    currentOrderProduct = p;
+    
     document.getElementById('detailModal').classList.add('active');
   }
 
-  function openLightbox(url) { document.getElementById('lightboxImg').src = url; document.getElementById('lightboxModal').classList.add('active'); }
+  // TÍNH NĂNG CHUYỂN ẢNH TRONG LIGHTBOX
+  function openLightbox(index) {
+    if (!currentOrderProduct || !currentOrderProduct.images) return;
+    currentLightboxIndex = index;
+    updateLightboxImg();
+    document.getElementById('lightboxModal').classList.add('active'); 
+  }
+
+  function navigateLightbox(direction) {
+    if (!currentOrderProduct || !currentOrderProduct.images) return;
+    currentLightboxIndex += direction;
+    
+    // Vòng lặp: Đi quá cuối thì về đầu, quá đầu thì về cuối
+    if (currentLightboxIndex < 0) currentLightboxIndex = currentOrderProduct.images.length - 1;
+    if (currentLightboxIndex >= currentOrderProduct.images.length) currentLightboxIndex = 0;
+    
+    updateLightboxImg();
+  }
+
+  function updateLightboxImg() {
+    if (!currentOrderProduct || !currentOrderProduct.images) return;
+    document.getElementById('lightboxImg').src = currentOrderProduct.images[currentLightboxIndex];
+    
+    // Ẩn nút lướt nếu chỉ có 1 ảnh
+    const btnPrev = document.getElementById('lightboxPrev');
+    const btnNext = document.getElementById('lightboxNext');
+    if (currentOrderProduct.images.length <= 1) {
+      btnPrev.style.display = 'none'; btnNext.style.display = 'none';
+    } else {
+      btnPrev.style.display = 'flex'; btnNext.style.display = 'flex';
+    }
+  }
 
   function openOrder(id) {
     const p = products.find(x => x.id == id);
@@ -530,7 +605,6 @@
   }
 
   function openOrderFromDetail() { closeModal('detailModal'); openOrder(currentOrderProduct.id); }
-
   function closeModal(modalId) { document.getElementById(modalId).classList.remove('active'); }
 
   async function submitOrder() {
@@ -545,13 +619,10 @@
     if (supabaseClient) {
       try {
         const { data } = await supabaseClient.from('orders').insert([newOrder]).select();
-        if(data && data.length > 0) newOrder = data[0]; // Lấy ID thực tế từ Database
+        if(data && data.length > 0) newOrder = data[0]; 
       } catch (e) { console.warn("Lỗi gửi đơn hàng:", e); }
-    } else {
-      newOrder.id = Date.now(); // ID tạm cho offline
-    }
+    } else { newOrder.id = Date.now(); }
     
-    // Ghi đè vào mảng nội bộ
     newOrder.products = { type: currentOrderProduct.type };
     newOrder.created_at = new Date().toISOString();
     localOrdersList.unshift(newOrder);
@@ -566,8 +637,7 @@
   // --- LOGIC ADMIN ---
   function openLoginModal() {
     if(isAdmin) {
-      isAdmin = false; 
-      localStorage.removeItem('isAdmin'); 
+      isAdmin = false; localStorage.removeItem('isAdmin'); 
       document.body.classList.remove('admin-mode');
       const btn = document.getElementById('adminToggleBtn'); btn.innerText = "Admin Mode: OFF"; btn.style.background = "rgba(255,255,255,0.7)"; btn.style.color = "var(--text)";
       document.getElementById('adminDashboard').classList.add('hidden');
@@ -579,32 +649,22 @@
   function checkLogin() {
     const pass = document.getElementById('adminPassword').value;
     if (pass === "Leduytan2007@") {
-      closeModal('loginModal'); 
-      isAdmin = true; 
-      localStorage.setItem('isAdmin', 'true'); 
-      
+      closeModal('loginModal'); isAdmin = true; localStorage.setItem('isAdmin', 'true'); 
       document.body.classList.add('admin-mode');
       const btn = document.getElementById('adminToggleBtn'); btn.innerText = "Admin Mode: ON"; btn.style.background = "#5B7CFF"; btn.style.color = "white";
       loadAdminDashboard();
     } else { alert("Mật khẩu không chính xác!"); }
   }
 
-  // XỬ LÝ ĐỔI TRẠNG THÁI ĐƠN HÀNG
   async function toggleOrderStatus(id, isChecked, element) {
     const tr = element.closest('tr');
-    
-    // Cập nhật giao diện lập tức
-    if (isChecked) { tr.classList.add('row-processed'); } 
-    else { tr.classList.remove('row-processed'); }
+    if (isChecked) { tr.classList.add('row-processed'); } else { tr.classList.remove('row-processed'); }
 
-    // Đồng bộ Supabase
     if (supabaseClient && id) {
-      try {
-        await supabaseClient.from('orders').update({ status: isChecked }).eq('id', id);
-      } catch(e) { console.warn("Lỗi cập nhật trạng thái:", e); }
+      try { await supabaseClient.from('orders').update({ status: isChecked }).eq('id', id); } 
+      catch(e) { console.warn("Lỗi cập nhật trạng thái:", e); }
     }
     
-    // Cập nhật biến tạm
     const orderIdx = localOrdersList.findIndex(o => o.id === id);
     if(orderIdx > -1) localOrdersList[orderIdx].status = isChecked;
   }
@@ -631,7 +691,7 @@
       const { data: dbOrders, error } = await supabaseClient.from('orders').select('*, products(type)').order('created_at', { ascending: false });
       if (!error && dbOrders) {
         dashboardOrders = dbOrders;
-        localOrdersList = dbOrders; // Cập nhật lại mảng gốc
+        localOrdersList = dbOrders; 
       }
     }
 
@@ -734,7 +794,7 @@
 
   window.addEventListener('DOMContentLoaded', () => {
     loadProductsFromSupabase();
-    recordVisit();
+    recordVisit(); // Gọi API lấy IP và lọc trùng
     
     if(isAdmin) {
       document.body.classList.add('admin-mode');
