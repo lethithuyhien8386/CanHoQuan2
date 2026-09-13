@@ -84,15 +84,15 @@
     .stat-card p { margin: 0; font-size: 28px; font-weight: 800; color: var(--blue); }
     
     .table-container { overflow-x: auto; background: rgba(255,255,255,0.5); border-radius: 16px; padding: 15px; border: 1px solid var(--border); }
-    table { width: 100%; border-collapse: collapse; min-width: 600px; }
-    th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid rgba(0,0,0,0.05); }
+    table { width: 100%; border-collapse: collapse; min-width: 700px; }
+    th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid rgba(0,0,0,0.05); transition: background 0.3s; }
     th { color: var(--text); font-weight: 700; background: rgba(255,255,255,0.6); }
+    .row-processed { background-color: rgba(255, 235, 59, 0.4) !important; } /* Nền vàng khi tick */
 
     .hero {
       display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 40px;
       padding: 50px 40px; margin-bottom: 40px; align-items: center;
     }
-    @media (max-width: 900px) { .hero { grid-template-columns: 1fr; } }
     
     .hero-text-content h2 { margin: 0 0 15px; font-size: 26px; line-height: 1.4; color: var(--text); font-weight: 700; }
     .hero-text-content .contact-info {
@@ -122,7 +122,6 @@
     .hero-img-wrap img { width: 100%; max-width: 400px; object-fit: contain; border-radius: 24px; }
 
     .main-content { display: grid; grid-template-columns: 280px 1fr; gap: 30px; }
-    @media (max-width: 900px) { .main-content { grid-template-columns: 1fr; } }
 
     .sidebar { padding: 24px; height: fit-content; }
     .sidebar h3 { margin-top: 0; font-size: 18px; margin-bottom: 20px; }
@@ -163,11 +162,11 @@
     .modal-overlay {
       position: fixed; top: 0; left: 0; width: 100%; height: 100%;
       background: rgba(0,0,0,0.4); backdrop-filter: blur(8px);
-      display: none; place-items: center; z-index: 100;
+      display: none; place-items: center; z-index: 100; padding: 20px;
     }
     .modal-overlay.active { display: grid; }
     .modal-content {
-      background: var(--glass-heavy); width: min(600px, 90%); max-height: 90vh; overflow-y: auto;
+      background: var(--glass-heavy); width: min(600px, 100%); max-height: 90vh; overflow-y: auto;
       padding: 30px; border-radius: 24px; box-shadow: var(--shadow); position: relative;
     }
     .close-modal {
@@ -205,6 +204,24 @@
       display: none; padding: 20px; background: rgba(255,255,255,0.7); border: 1px solid var(--blue); border-radius: 16px; margin-top: 20px; font-size: 14px; line-height: 1.6; color: var(--text); text-align: center;
     }
     .hidden { display: none !important; }
+
+    /* ========================================= */
+    /* RESPONSIVE CHO ĐIỆN THOẠI & MÀN HÌNH NHỎ */
+    /* ========================================= */
+    @media (max-width: 768px) {
+      .site { width: calc(100% - 20px); padding: 10px 0 40px; }
+      header { flex-direction: column; gap: 15px; text-align: center; }
+      
+      .hero { grid-template-columns: 1fr; padding: 25px 20px; text-align: center; gap: 20px; }
+      .hero-actions { flex-direction: column; } /* Xếp dọc card Mua/Thuê */
+      .hero-img-wrap img { max-width: 80%; }
+      
+      .main-content { grid-template-columns: 1fr; } /* Đưa thanh bộ lọc lên trên sản phẩm */
+      .sidebar { padding: 15px; }
+      
+      .modal-content { padding: 20px; }
+      .stat-grid { grid-template-columns: 1fr 1fr; } /* Dashboard 2 cột trên đt */
+    }
   </style>
 </head>
 <body>
@@ -223,6 +240,7 @@
     </div>
   </header>
 
+  <!-- BẢNG ADMIN -->
   <div id="adminDashboard" class="glass hidden">
     <h2 style="margin-top:0;">Thống Kê Tổng Hợp</h2>
     <div class="stat-grid">
@@ -235,7 +253,14 @@
     <div class="table-container">
       <table>
         <thead>
-          <tr><th>Họ và Tên</th><th>Số Điện Thoại</th><th>Loại (Mua/Thuê)</th><th>Mặt hàng đã chọn</th><th>Ngày đặt</th></tr>
+          <tr>
+            <th style="text-align: center;">Trạng thái</th> <!-- Thêm cột trạng thái -->
+            <th>Họ và Tên</th>
+            <th>Số Điện Thoại</th>
+            <th>Loại (Mua/Thuê)</th>
+            <th>Mặt hàng đã chọn</th>
+            <th>Ngày đặt</th>
+          </tr>
         </thead>
         <tbody id="ordersTableBody"></tbody>
       </table>
@@ -297,8 +322,9 @@
   </div>
 </div>
 
+<!-- Modal Đăng nhập Admin -->
 <div class="modal-overlay" id="loginModal">
-  <div class="modal-content glass" style="width: 400px; text-align: center;">
+  <div class="modal-content glass" style="max-width: 400px; text-align: center;">
     <h3 style="margin-top:0;">Vui lòng nhập admin.</h3>
     <p style="font-size:13px; color:var(--muted); margin-bottom: 20px;">Nếu bạn ấn nhầm vui lòng ấn nút "Đóng"</p>
     <div class="form-group">
@@ -381,11 +407,9 @@
   ];
   let currentFilterType = 'Mua'; 
   let currentOrderProduct = null;
-  // BƯỚC SỬA LỖI 1: Lấy trạng thái Admin từ LocalStorage (Giữ quyền ngay cả khi Load lại trang)
   let isAdmin = localStorage.getItem('isAdmin') === 'true';
-  
   let uploadedTempImages = []; 
-  let localOrdersList = []; // Danh sách dự phòng để render ngay sau khi đặt hàng
+  let localOrdersList = [];
 
   const formatPrice = (price) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(price);
 
@@ -476,7 +500,6 @@
   function showDetail(id) {
     const p = products.find(x => x.id == id);
     if(!p) return;
-    
     document.getElementById('detailTitle').innerText = p.name;
     document.getElementById('detailPrice').innerText = formatPrice(p.price);
     document.getElementById('detailAddress').innerText = "📍 Vị trí: " + (p.district || '');
@@ -517,27 +540,26 @@
     const btn = document.getElementById('btnSubmitOrder');
     btn.innerText = "Đang gửi..."; btn.disabled = true;
 
-    // BƯỚC SỬA LỖI 2: Đẩy vào database + Lưu luôn một bản tạm vào mảng trên máy để bảng Dashboard thấy ngay lập tức
+    let newOrder = { customer_name: name, phone: phone, product_id: currentOrderProduct.id, product_name: currentOrderProduct.name, status: false };
+    
     if (supabaseClient) {
       try {
-        await supabaseClient.from('orders').insert([{ customer_name: name, phone: phone, product_id: currentOrderProduct.id, product_name: currentOrderProduct.name }]);
+        const { data } = await supabaseClient.from('orders').insert([newOrder]).select();
+        if(data && data.length > 0) newOrder = data[0]; // Lấy ID thực tế từ Database
       } catch (e) { console.warn("Lỗi gửi đơn hàng:", e); }
+    } else {
+      newOrder.id = Date.now(); // ID tạm cho offline
     }
     
-    // Ghi đè vào mảng nội bộ để hiện ra lập tức
-    localOrdersList.unshift({
-      customer_name: name,
-      phone: phone,
-      product_name: currentOrderProduct.name,
-      products: { type: currentOrderProduct.type }, // Mô phỏng join bảng
-      created_at: new Date().toISOString()
-    });
+    // Ghi đè vào mảng nội bộ
+    newOrder.products = { type: currentOrderProduct.type };
+    newOrder.created_at = new Date().toISOString();
+    localOrdersList.unshift(newOrder);
     
     btn.innerText = "Đặt hàng"; btn.disabled = false;
     document.getElementById('orderFormArea').classList.add('hidden');
     document.getElementById('orderSuccessMsg').style.display = 'block';
 
-    // Refresh lại dashboard (nếu Admin đang bật)
     if(isAdmin) loadAdminDashboard();
   }
 
@@ -545,7 +567,7 @@
   function openLoginModal() {
     if(isAdmin) {
       isAdmin = false; 
-      localStorage.removeItem('isAdmin'); // Xóa lưu trạng thái
+      localStorage.removeItem('isAdmin'); 
       document.body.classList.remove('admin-mode');
       const btn = document.getElementById('adminToggleBtn'); btn.innerText = "Admin Mode: OFF"; btn.style.background = "rgba(255,255,255,0.7)"; btn.style.color = "var(--text)";
       document.getElementById('adminDashboard').classList.add('hidden');
@@ -559,12 +581,32 @@
     if (pass === "Leduytan2007@") {
       closeModal('loginModal'); 
       isAdmin = true; 
-      localStorage.setItem('isAdmin', 'true'); // Lưu lại trạng thái
+      localStorage.setItem('isAdmin', 'true'); 
       
       document.body.classList.add('admin-mode');
       const btn = document.getElementById('adminToggleBtn'); btn.innerText = "Admin Mode: ON"; btn.style.background = "#5B7CFF"; btn.style.color = "white";
       loadAdminDashboard();
     } else { alert("Mật khẩu không chính xác!"); }
+  }
+
+  // XỬ LÝ ĐỔI TRẠNG THÁI ĐƠN HÀNG
+  async function toggleOrderStatus(id, isChecked, element) {
+    const tr = element.closest('tr');
+    
+    // Cập nhật giao diện lập tức
+    if (isChecked) { tr.classList.add('row-processed'); } 
+    else { tr.classList.remove('row-processed'); }
+
+    // Đồng bộ Supabase
+    if (supabaseClient && id) {
+      try {
+        await supabaseClient.from('orders').update({ status: isChecked }).eq('id', id);
+      } catch(e) { console.warn("Lỗi cập nhật trạng thái:", e); }
+    }
+    
+    // Cập nhật biến tạm
+    const orderIdx = localOrdersList.findIndex(o => o.id === id);
+    if(orderIdx > -1) localOrdersList[orderIdx].status = isChecked;
   }
 
   async function loadAdminDashboard() {
@@ -584,25 +626,29 @@
       document.getElementById('stat30Days').innerText = c30 || 0;
     }
 
-    // Tải danh sách Orders từ Database
     let dashboardOrders = [...localOrdersList];
     if (supabaseClient) {
       const { data: dbOrders, error } = await supabaseClient.from('orders').select('*, products(type)').order('created_at', { ascending: false });
-      // Lấy từ Supabase được ưu tiên. Trừ khi gặp lỗi RLS do thiếu Policy thì fallback dùng mảng nội bộ
-      if (!error && dbOrders && dbOrders.length > 0) {
+      if (!error && dbOrders) {
         dashboardOrders = dbOrders;
+        localOrdersList = dbOrders; // Cập nhật lại mảng gốc
       }
     }
 
     document.getElementById('statOrders').innerText = dashboardOrders.length;
-
     const tbody = document.getElementById('ordersTableBody');
     tbody.innerHTML = '';
+    
     if(dashboardOrders.length > 0) {
       dashboardOrders.forEach(o => {
         const tr = document.createElement('tr');
+        if (o.status) tr.classList.add('row-processed');
         const dateStr = o.created_at ? new Date(o.created_at).toLocaleDateString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '';
+        
         tr.innerHTML = `
+          <td style="text-align: center;">
+            <input type="checkbox" style="width:18px; height:18px; cursor:pointer;" ${o.status ? 'checked' : ''} onchange="toggleOrderStatus(${o.id}, this.checked, this)">
+          </td>
           <td><strong>${o.customer_name}</strong></td>
           <td>${o.phone}</td>
           <td><span style="background:${o.products?.type === 'Mua' ? 'var(--blue)' : 'var(--violet)'}; color:white; padding: 4px 8px; border-radius: 6px; font-size:12px;">${o.products?.type || 'Không rõ'}</span></td>
@@ -611,7 +657,7 @@
         `;
         tbody.appendChild(tr);
       });
-    } else { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Chưa có đơn hàng nào</td></tr>'; }
+    } else { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Chưa có đơn hàng nào</td></tr>'; }
   }
 
   const imgInput = document.getElementById('adminImgFiles');
@@ -690,7 +736,6 @@
     loadProductsFromSupabase();
     recordVisit();
     
-    // Nếu lưu Admin trong LocalStorage là true, tự động mở
     if(isAdmin) {
       document.body.classList.add('admin-mode');
       const btn = document.getElementById('adminToggleBtn');
