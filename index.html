@@ -143,7 +143,6 @@
     
     .product-card { padding: 16px; display: flex; flex-direction: column; gap: 12px; transition: transform 0.3s; }
     .product-card:hover { transform: translateY(-5px); }
-    /* Cursor pointer cho ảnh để thể hiện có thể click */
     .product-img { width: 100%; height: 200px; border-radius: 16px; object-fit: cover; background: #ddd; cursor: pointer; }
     .product-info h4 { margin: 0; font-size: 18px; }
     .product-price { font-size: 18px; font-weight: 800; color: var(--blue); margin: 5px 0; }
@@ -348,7 +347,7 @@
   </div>
 </div>
 
-<!-- Màn hình Lightbox phóng to ảnh (Đã thêm nút lướt ảnh) -->
+<!-- Màn hình Lightbox phóng to ảnh -->
 <div class="modal-overlay" id="lightboxModal" style="z-index: 200;" onclick="closeModal('lightboxModal')">
   <button class="close-modal" style="color:white; right: 30px; top: 30px; z-index:201;">&times;</button>
   <div class="slider-wrapper-fullscreen" onclick="event.stopPropagation()">
@@ -386,8 +385,16 @@
     <p style="margin-bottom:20px; color:var(--muted)">Sản phẩm: <strong id="orderProductName"></strong></p>
     
     <div id="orderFormArea">
-      <div class="form-group"><label>Vui lòng nhập họ và tên</label><input type="text" id="customerName" required></div>
-      <div class="form-group"><label>Số điện thoại của quý khách</label><input type="tel" id="customerPhone" required></div>
+      <div class="form-group">
+        <label>Vui lòng nhập họ và tên</label>
+        <input type="text" id="customerName" required>
+      </div>
+      <div class="form-group">
+        <label>Số điện thoại của quý khách</label>
+        <input type="tel" id="customerPhone" required>
+        <!-- Cảnh báo lỗi SDT -->
+        <small id="phoneWarning" style="color: red; display: none; margin-top: 8px; font-weight: 500;">Số điện thoại không hợp lệ. Phải có 10 chữ số và bắt đầu bằng số 0.</small>
+      </div>
       <button class="submit-btn" onclick="submitOrder()" id="btnSubmitOrder">Đặt hàng</button>
     </div>
 
@@ -396,6 +403,23 @@
       Nếu sau 5-10p mà không được chuyên viên tư vấn hỗ trợ vui lòng liên hệ chuyên viên tư vấn: <strong>Hiền Lê ( Helen )</strong><br><br>
       📞 SDT-Zalo-Whatsapp: <strong>0862329209</strong><br>
       🌐 Facebook: <a href="https://www.facebook.com/helen.le8687" target="_blank">https://www.facebook.com/helen.le8687</a>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Xác nhận đặt hàng -->
+<div class="modal-overlay" id="confirmModal">
+  <div class="modal-content glass" style="max-width: 450px;">
+    <button class="close-modal" onclick="closeModal('confirmModal')">&times;</button>
+    <h3 style="margin-top:0; font-size: 22px; margin-bottom: 20px;">Xác nhận thông tin</h3>
+    <div style="margin-bottom: 25px; line-height: 1.8; font-size: 15px; background: rgba(255,255,255,0.5); padding: 15px; border-radius: 12px;">
+      <p style="margin: 0;"><strong>Họ và Tên:</strong> <span id="confirmName"></span></p>
+      <p style="margin: 8px 0;"><strong>Số điện thoại:</strong> <span id="confirmPhone"></span></p>
+      <p style="margin: 0;"><strong>Mặt hàng đã chọn:</strong> <span id="confirmProduct"></span></p>
+    </div>
+    <div style="display: flex; gap: 10px;">
+      <button class="submit-btn" style="background: rgba(255,255,255,0.7); color: var(--text); flex: 1;" onclick="closeModal('confirmModal')">Quay lại</button>
+      <button class="submit-btn" style="flex: 2;" onclick="confirmSubmitOrder()" id="btnConfirmSubmit">Xác Nhận Đặt Hàng</button>
     </div>
   </div>
 </div>
@@ -450,7 +474,6 @@
     renderProducts(); 
   }
 
-  // TÍNH NĂNG ĐẾM LƯỢT TRUY CẬP DỰA TRÊN IP
   async function recordVisit() {
     let visited = false;
     try { visited = sessionStorage.getItem('visited'); } catch (e) {}
@@ -458,19 +481,14 @@
 
     if (supabaseClient) {
       try {
-        // Lấy IP của người dùng qua API miễn phí ipify
         const res = await fetch('https://api.ipify.org?format=json');
         const data = await res.json();
         const userIp = data.ip;
 
-        // Kiểm tra xem IP này đã từng vào web chưa để lọc trùng
         const { data: existingVisit } = await supabaseClient.from('page_visits').select('id').eq('ip_address', userIp).limit(1);
-        
         if (!existingVisit || existingVisit.length === 0) {
-          // Ghi nhận IP mới vào CSDL
           await supabaseClient.from('page_visits').insert([{ ip_address: userIp }]);
         }
-        
         try { sessionStorage.setItem('visited', 'true'); } catch (e) {}
       } catch (err) { console.warn("Lỗi ghi nhận IP:", err); }
     }
@@ -482,7 +500,6 @@
     document.getElementById('cardThue').classList.toggle('active', mode === 'Thuê');
     renderProducts();
 
-    // TỰ ĐỘNG CUỘN XUỐNG KHI Ở CHẾ ĐỘ MOBILE
     if (window.innerWidth <= 768) {
       document.getElementById('productSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
@@ -509,7 +526,6 @@
       const card = document.createElement('div');
       card.className = 'product-card glass';
       
-      // ẤN VÀO ẢNH SẼ MỞ CHI TIẾT SẢN PHẨM (onclick="showDetail(${p.id})")
       card.innerHTML = `
         <img src="${coverImg}" class="product-img" onclick="showDetail(${p.id})">
         <div class="product-info">
@@ -544,7 +560,7 @@
     document.getElementById('detailAddress').innerText = "📍 Vị trí: " + (p.district || '');
     document.getElementById('detailDesc').innerText = p.description || '';
     
-    currentOrderProduct = p; // Phải set currentOrderProduct trước khi render ảnh
+    currentOrderProduct = p; 
     const slider = document.getElementById('detailSlider');
     slider.innerHTML = '';
     
@@ -552,7 +568,7 @@
       p.images.forEach((imgUrl, idx) => {
         const img = document.createElement('img'); 
         img.src = imgUrl; 
-        img.onclick = () => openLightbox(idx); // Truyền vị trí ảnh
+        img.onclick = () => openLightbox(idx); 
         slider.appendChild(img);
       });
     }
@@ -560,7 +576,6 @@
     document.getElementById('detailModal').classList.add('active');
   }
 
-  // TÍNH NĂNG CHUYỂN ẢNH TRONG LIGHTBOX
   function openLightbox(index) {
     if (!currentOrderProduct || !currentOrderProduct.images) return;
     currentLightboxIndex = index;
@@ -572,7 +587,6 @@
     if (!currentOrderProduct || !currentOrderProduct.images) return;
     currentLightboxIndex += direction;
     
-    // Vòng lặp: Đi quá cuối thì về đầu, quá đầu thì về cuối
     if (currentLightboxIndex < 0) currentLightboxIndex = currentOrderProduct.images.length - 1;
     if (currentLightboxIndex >= currentOrderProduct.images.length) currentLightboxIndex = 0;
     
@@ -583,7 +597,6 @@
     if (!currentOrderProduct || !currentOrderProduct.images) return;
     document.getElementById('lightboxImg').src = currentOrderProduct.images[currentLightboxIndex];
     
-    // Ẩn nút lướt nếu chỉ có 1 ảnh
     const btnPrev = document.getElementById('lightboxPrev');
     const btnNext = document.getElementById('lightboxNext');
     if (currentOrderProduct.images.length <= 1) {
@@ -600,18 +613,47 @@
     document.getElementById('orderProductName').innerText = p.name;
     document.getElementById('orderFormArea').classList.remove('hidden');
     document.getElementById('orderSuccessMsg').style.display = 'none';
-    document.getElementById('customerName').value = ''; document.getElementById('customerPhone').value = '';
+    document.getElementById('customerName').value = ''; 
+    document.getElementById('customerPhone').value = '';
+    document.getElementById('phoneWarning').style.display = 'none';
+    
     document.getElementById('orderModal').classList.add('active');
   }
 
   function openOrderFromDetail() { closeModal('detailModal'); openOrder(currentOrderProduct.id); }
   function closeModal(modalId) { document.getElementById(modalId).classList.remove('active'); }
 
-  async function submitOrder() {
-    const name = document.getElementById('customerName').value; const phone = document.getElementById('customerPhone').value;
+  // KIỂM TRA ĐIỀU KIỆN & MỞ MODAL XÁC NHẬN
+  function submitOrder() {
+    const name = document.getElementById('customerName').value.trim(); 
+    const phone = document.getElementById('customerPhone').value.trim();
+    const phoneWarning = document.getElementById('phoneWarning');
+    
     if(!name || !phone) { alert("Vui lòng điền đủ họ tên và số điện thoại!"); return; }
     
-    const btn = document.getElementById('btnSubmitOrder');
+    // Kiểm tra định dạng số điện thoại (bắt đầu bằng 0, có đúng 10 chữ số)
+    const phoneRegex = /^0\d{9}$/;
+    if (!phoneRegex.test(phone)) {
+      phoneWarning.style.display = 'block';
+      return; // Dừng lại, không cho đặt hàng
+    } else {
+      phoneWarning.style.display = 'none';
+    }
+    
+    // Truyền dữ liệu sang Modal Xác Nhận
+    document.getElementById('confirmName').innerText = name;
+    document.getElementById('confirmPhone').innerText = phone;
+    document.getElementById('confirmProduct').innerText = currentOrderProduct.name;
+    
+    document.getElementById('confirmModal').classList.add('active');
+  }
+
+  // TIẾN HÀNH ĐẶT HÀNG CHÍNH THỨC VÀO CSDL
+  async function confirmSubmitOrder() {
+    const name = document.getElementById('customerName').value.trim(); 
+    const phone = document.getElementById('customerPhone').value.trim();
+
+    const btn = document.getElementById('btnConfirmSubmit');
     btn.innerText = "Đang gửi..."; btn.disabled = true;
 
     let newOrder = { customer_name: name, phone: phone, product_id: currentOrderProduct.id, product_name: currentOrderProduct.name, status: false };
@@ -627,14 +669,16 @@
     newOrder.created_at = new Date().toISOString();
     localOrdersList.unshift(newOrder);
     
-    btn.innerText = "Đặt hàng"; btn.disabled = false;
+    btn.innerText = "Xác Nhận Đặt Hàng"; btn.disabled = false;
+    
+    // Đóng modal xác nhận, ẩn form đặt hàng, hiện thông báo thành công
+    closeModal('confirmModal');
     document.getElementById('orderFormArea').classList.add('hidden');
     document.getElementById('orderSuccessMsg').style.display = 'block';
 
     if(isAdmin) loadAdminDashboard();
   }
 
-  // --- LOGIC ADMIN ---
   function openLoginModal() {
     if(isAdmin) {
       isAdmin = false; localStorage.removeItem('isAdmin'); 
@@ -794,7 +838,7 @@
 
   window.addEventListener('DOMContentLoaded', () => {
     loadProductsFromSupabase();
-    recordVisit(); // Gọi API lấy IP và lọc trùng
+    recordVisit(); 
     
     if(isAdmin) {
       document.body.classList.add('admin-mode');
