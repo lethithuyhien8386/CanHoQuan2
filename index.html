@@ -374,11 +374,7 @@
   </div>
 </div>
 
-<!-- ============================================== -->
-<!-- JAVASCRIPT ĐƯỢC THIẾT KẾ ĐỂ "KHÔNG THỂ BỊ SẬP" -->
-<!-- ============================================== -->
 <script>
-  // 1. DỮ LIỆU MẪU (Sẽ dùng nếu chạy máy nội bộ file:// hoặc không có kết nối Supabase)
   let products = [
     { id: 1, type: 'Mua', name: 'Biệt thự Vinhomes', price: 25000000000, district: 'Quận 9', images: ['https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=600'], description: 'Biệt thự cao cấp 3 tầng, sân vườn rộng.' },
     { id: 2, type: 'Thuê', name: 'Căn hộ Masteri', price: 15000000, district: 'Quận 2', images: ['https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=600'], description: 'Căn hộ 2 phòng ngủ, đầy đủ nội thất sang trọng.' }
@@ -390,7 +386,6 @@
 
   const formatPrice = (price) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(price);
 
-  // 2. KHỞI TẠO SUPABASE AN TOÀN TRONG TRY-CATCH
   let supabaseClient = null;
   try {
     if (window.supabase) {
@@ -398,31 +393,22 @@
         'https://zaufgjmwglhnptfdpxlr.supabase.co', 
         'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InphdWZnam13Z2xobnB0ZmRweGxyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzMDU5MTMsImV4cCI6MjEwNDg4MTkxM30.JYzsxBCaLOHq21O7MTs8qICWxj5oimOvDHaX9tOTjm4'
       );
-    } else {
-      console.warn("Lỗi không tải được Supabase CDN. Kích hoạt chế độ Offline/Dữ liệu mẫu.");
     }
-  } catch (error) {
-    console.warn("Lỗi khởi tạo Supabase:", error);
-  }
+  } catch (error) { console.warn("Lỗi Supabase:", error); }
 
-  // 3. TẢI DỮ LIỆU (Tự động rơi vào dữ liệu mẫu nếu lỗi)
   async function loadProductsFromSupabase() {
     if (supabaseClient) {
       try {
         let { data, error } = await supabaseClient.from('products').select('*').order('created_at', { ascending: false });
-        if (!error && data && data.length > 0) {
-          products = data; 
-        }
-      } catch (err) { console.warn("Không kết nối được database, dùng dữ liệu mẫu."); }
+        if (!error && data && data.length > 0) products = data; 
+      } catch (err) {}
     }
-    renderProducts(); // Dù có lỗi mạng vẫn gọi render để giao diện hoạt động!
+    renderProducts(); 
   }
 
-  // 4. LƯU LƯỢT TRUY CẬP (Bắt lỗi sessionStorage trên máy cục bộ)
   async function recordVisit() {
     let visited = false;
-    try { visited = sessionStorage.getItem('visited'); } catch (e) { /* Bỏ qua lỗi file:// */ }
-    
+    try { visited = sessionStorage.getItem('visited'); } catch (e) {}
     if (!visited && supabaseClient) {
       try {
         await supabaseClient.from('page_visits').insert([{}]);
@@ -431,7 +417,6 @@
     }
   }
 
-  // 5. CÁC HÀM TƯƠNG TÁC GIAO DIỆN
   function setMode(mode) {
     currentFilterType = mode;
     document.getElementById('cardMua').classList.toggle('active', mode === 'Mua');
@@ -523,6 +508,13 @@
 
   function closeModal(modalId) { document.getElementById(modalId).classList.remove('active'); }
 
+  function saveOrderOfflineFallback(orderData) {
+    let saved = [];
+    try { saved = JSON.parse(localStorage.getItem('offlineOrders') || '[]'); } catch(e){}
+    saved.unshift(orderData); // Đưa lên đầu
+    try { localStorage.setItem('offlineOrders', JSON.stringify(saved)); } catch(e){}
+  }
+
   async function submitOrder() {
     const name = document.getElementById('customerName').value; const phone = document.getElementById('customerPhone').value;
     if(!name || !phone) { alert("Vui lòng điền đủ họ tên và số điện thoại!"); return; }
@@ -530,21 +522,42 @@
     const btn = document.getElementById('btnSubmitOrder');
     btn.innerText = "Đang gửi..."; btn.disabled = true;
 
+    // Chuẩn bị dữ liệu đề phòng cần lưu cục bộ (kèm cả loại sản phẩm để bảng Dashboard hiển thị)
+    let orderData = { 
+      customer_name: name, phone: phone, 
+      product_id: currentOrderProduct.id, product_name: currentOrderProduct.name, 
+      created_at: new Date().toISOString(), 
+      products: { type: currentOrderProduct.type } 
+    };
+
     if (supabaseClient) {
       try {
-        await supabaseClient.from('orders').insert([{ customer_name: name, phone: phone, product_id: currentOrderProduct.id, product_name: currentOrderProduct.name }]);
-      } catch (e) { console.warn("Lỗi gửi đơn hàng:", e); }
+        const { error } = await supabaseClient.from('orders').insert([{ customer_name: name, phone: phone, product_id: currentOrderProduct.id, product_name: currentOrderProduct.name }]);
+        // Nếu lỗi (ví dụ dùng sản phẩm ảo không có trong Supabase -> lỗi ràng buộc khóa ngoại)
+        if (error) {
+          saveOrderOfflineFallback(orderData);
+        }
+      } catch (e) {
+        saveOrderOfflineFallback(orderData);
+      }
+    } else {
+      saveOrderOfflineFallback(orderData);
     }
     
     btn.innerText = "Đặt hàng"; btn.disabled = false;
     document.getElementById('orderFormArea').classList.add('hidden');
     document.getElementById('orderSuccessMsg').style.display = 'block';
+
+    // Tự động làm mới bảng Admin nếu Admin đang mở
+    if (isAdmin) loadAdminDashboard();
   }
 
-  // 6. LOGIC ADMIN
+  // --- LOGIC ADMIN (ĐÃ SỬA ĐỂ LƯU VĨNH VIỄN) ---
   function openLoginModal() {
     if(isAdmin) {
-      isAdmin = false; document.body.classList.remove('admin-mode');
+      isAdmin = false;
+      localStorage.removeItem('isAdmin'); // Tắt thì xóa bộ nhớ
+      document.body.classList.remove('admin-mode');
       const btn = document.getElementById('adminToggleBtn'); btn.innerText = "Admin Mode: OFF"; btn.style.background = "rgba(255,255,255,0.7)"; btn.style.color = "var(--text)";
       document.getElementById('adminDashboard').classList.add('hidden');
     } else {
@@ -555,7 +568,11 @@
   function checkLogin() {
     const pass = document.getElementById('adminPassword').value;
     if (pass === "Leduytan2007@") {
-      closeModal('loginModal'); isAdmin = true; document.body.classList.add('admin-mode');
+      closeModal('loginModal'); 
+      isAdmin = true;
+      localStorage.setItem('isAdmin', 'true'); // Lưu trạng thái đăng nhập
+      document.body.classList.add('admin-mode');
+      
       const btn = document.getElementById('adminToggleBtn'); btn.innerText = "Admin Mode: ON"; btn.style.background = "#5B7CFF"; btn.style.color = "white";
       loadAdminDashboard();
     } else { alert("Mật khẩu không chính xác!"); }
@@ -563,30 +580,43 @@
 
   async function loadAdminDashboard() {
     document.getElementById('adminDashboard').classList.remove('hidden');
-    if (!supabaseClient) return; // Nếu offline, không load phần này để tránh lỗi
     
     const now = new Date();
     const today = new Date(now.setHours(0,0,0,0)).toISOString();
     const last7Str = new Date(new Date().setDate(new Date().getDate() - 7)).toISOString();
     const last30Str = new Date(new Date().setDate(new Date().getDate() - 30)).toISOString();
 
-    const { count: c1 } = await supabaseClient.from('page_visits').select('*', { count: 'exact', head: true }).gte('created_at', today);
-    const { count: c7 } = await supabaseClient.from('page_visits').select('*', { count: 'exact', head: true }).gte('created_at', last7Str);
-    const { count: c30 } = await supabaseClient.from('page_visits').select('*', { count: 'exact', head: true }).gte('created_at', last30Str);
-    
-    document.getElementById('statToday').innerText = c1 || 0;
-    document.getElementById('stat7Days').innerText = c7 || 0;
-    document.getElementById('stat30Days').innerText = c30 || 0;
+    let c1 = 0, c7 = 0, c30 = 0;
+    let orders = [];
 
-    const { data: orders } = await supabaseClient.from('orders').select('*, products(type)').order('created_at', { ascending: false });
-    document.getElementById('statOrders').innerText = orders ? orders.length : 0;
+    // Kéo dữ liệu từ Supabase nếu có
+    if (supabaseClient) {
+      try {
+        const { count: count1 } = await supabaseClient.from('page_visits').select('*', { count: 'exact', head: true }).gte('created_at', today); c1 = count1 || 0;
+        const { count: count7 } = await supabaseClient.from('page_visits').select('*', { count: 'exact', head: true }).gte('created_at', last7Str); c7 = count7 || 0;
+        const { count: count30 } = await supabaseClient.from('page_visits').select('*', { count: 'exact', head: true }).gte('created_at', last30Str); c30 = count30 || 0;
+        
+        const { data: dbOrders, error } = await supabaseClient.from('orders').select('*, products(type)').order('created_at', { ascending: false });
+        if(!error && dbOrders) orders = dbOrders;
+      } catch (err) {}
+    }
+
+    // Kết hợp với các đơn hàng lưu cục bộ (offline fallback)
+    let offlineOrders = [];
+    try { offlineOrders = JSON.parse(localStorage.getItem('offlineOrders') || '[]'); } catch(e){}
+    orders = [...offlineOrders, ...orders];
+    
+    document.getElementById('statToday').innerText = c1;
+    document.getElementById('stat7Days').innerText = c7;
+    document.getElementById('stat30Days').innerText = c30;
+    document.getElementById('statOrders').innerText = orders.length;
 
     const tbody = document.getElementById('ordersTableBody');
     tbody.innerHTML = '';
-    if(orders && orders.length > 0) {
+    if(orders.length > 0) {
       orders.forEach(o => {
         const tr = document.createElement('tr');
-        const dateStr = o.created_at ? new Date(o.created_at).toLocaleDateString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '';
+        const dateStr = o.created_at ? new Date(o.created_at).toLocaleDateString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : 'Vừa xong';
         tr.innerHTML = `
           <td><strong>${o.customer_name}</strong></td>
           <td>${o.phone}</td>
@@ -647,7 +677,6 @@
       if (id) { await supabaseClient.from('products').update({ type: type, name: name, price: price, district: district, images: images, description: desc }).eq('id', id); } 
       else { await supabaseClient.from('products').insert([{ type: type, name: name, price: price, district: district, images: images, description: desc }]); }
     } else {
-      // Offline fallback: Cập nhật biến tạm trên máy tính (sẽ mất khi F5)
       if (id) {
         const idx = products.findIndex(p => p.id == id);
         if(idx !== -1) products[idx] = { id: parseInt(id), type, name, price, district, images, description: desc };
@@ -658,7 +687,6 @@
     }
     
     btn.innerText = "Lưu Sản Phẩm"; btn.disabled = false; closeModal('adminModal');
-    // Reload lại từ Server (Nếu online)
     if(supabaseClient) loadProductsFromSupabase(); else renderProducts();
   }
 
@@ -673,10 +701,23 @@
     }
   }
 
-  // KHỞI ĐỘNG CÁC TÁC VỤ KHI VÀO TRANG
+  // KHỞI ĐỘNG CÁC TÁC VỤ KHI VÀO TRANG (VÀ KIỂM TRA LẠI ADMIN MODE)
   window.addEventListener('DOMContentLoaded', () => {
     loadProductsFromSupabase();
     recordVisit();
+    
+    // Kiểm tra xem trước đó đã đăng nhập Admin chưa
+    if (localStorage.getItem('isAdmin') === 'true') {
+      isAdmin = true;
+      document.body.classList.add('admin-mode');
+      const btn = document.getElementById('adminToggleBtn');
+      btn.innerText = "Admin Mode: ON";
+      btn.style.background = "#5B7CFF"; 
+      btn.style.color = "white";
+      
+      // Load bảng dashboard nếu đang là admin
+      loadAdminDashboard();
+    }
   });
 </script>
 </body>
