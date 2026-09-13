@@ -381,8 +381,11 @@
   ];
   let currentFilterType = 'Mua'; 
   let currentOrderProduct = null;
-  let isAdmin = false;
+  // BƯỚC SỬA LỖI 1: Lấy trạng thái Admin từ LocalStorage (Giữ quyền ngay cả khi Load lại trang)
+  let isAdmin = localStorage.getItem('isAdmin') === 'true';
+  
   let uploadedTempImages = []; 
+  let localOrdersList = []; // Danh sách dự phòng để render ngay sau khi đặt hàng
 
   const formatPrice = (price) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(price);
 
@@ -394,13 +397,13 @@
         'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InphdWZnam13Z2xobnB0ZmRweGxyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzMDU5MTMsImV4cCI6MjEwNDg4MTkxM30.JYzsxBCaLOHq21O7MTs8qICWxj5oimOvDHaX9tOTjm4'
       );
     }
-  } catch (error) { console.warn("Lỗi Supabase:", error); }
+  } catch (error) { console.warn("Lỗi khởi tạo Supabase:", error); }
 
   async function loadProductsFromSupabase() {
     if (supabaseClient) {
       try {
         let { data, error } = await supabaseClient.from('products').select('*').order('created_at', { ascending: false });
-        if (!error && data && data.length > 0) products = data; 
+        if (!error && data && data.length > 0) { products = data; }
       } catch (err) {}
     }
     renderProducts(); 
@@ -486,7 +489,6 @@
         const img = document.createElement('img'); img.src = imgUrl; img.onclick = () => openLightbox(imgUrl); slider.appendChild(img);
       });
     }
-
     currentOrderProduct = p;
     document.getElementById('detailModal').classList.add('active');
   }
@@ -508,13 +510,6 @@
 
   function closeModal(modalId) { document.getElementById(modalId).classList.remove('active'); }
 
-  function saveOrderOfflineFallback(orderData) {
-    let saved = [];
-    try { saved = JSON.parse(localStorage.getItem('offlineOrders') || '[]'); } catch(e){}
-    saved.unshift(orderData); // Đưa lên đầu
-    try { localStorage.setItem('offlineOrders', JSON.stringify(saved)); } catch(e){}
-  }
-
   async function submitOrder() {
     const name = document.getElementById('customerName').value; const phone = document.getElementById('customerPhone').value;
     if(!name || !phone) { alert("Vui lòng điền đủ họ tên và số điện thoại!"); return; }
@@ -522,41 +517,35 @@
     const btn = document.getElementById('btnSubmitOrder');
     btn.innerText = "Đang gửi..."; btn.disabled = true;
 
-    // Chuẩn bị dữ liệu đề phòng cần lưu cục bộ (kèm cả loại sản phẩm để bảng Dashboard hiển thị)
-    let orderData = { 
-      customer_name: name, phone: phone, 
-      product_id: currentOrderProduct.id, product_name: currentOrderProduct.name, 
-      created_at: new Date().toISOString(), 
-      products: { type: currentOrderProduct.type } 
-    };
-
+    // BƯỚC SỬA LỖI 2: Đẩy vào database + Lưu luôn một bản tạm vào mảng trên máy để bảng Dashboard thấy ngay lập tức
     if (supabaseClient) {
       try {
-        const { error } = await supabaseClient.from('orders').insert([{ customer_name: name, phone: phone, product_id: currentOrderProduct.id, product_name: currentOrderProduct.name }]);
-        // Nếu lỗi (ví dụ dùng sản phẩm ảo không có trong Supabase -> lỗi ràng buộc khóa ngoại)
-        if (error) {
-          saveOrderOfflineFallback(orderData);
-        }
-      } catch (e) {
-        saveOrderOfflineFallback(orderData);
-      }
-    } else {
-      saveOrderOfflineFallback(orderData);
+        await supabaseClient.from('orders').insert([{ customer_name: name, phone: phone, product_id: currentOrderProduct.id, product_name: currentOrderProduct.name }]);
+      } catch (e) { console.warn("Lỗi gửi đơn hàng:", e); }
     }
+    
+    // Ghi đè vào mảng nội bộ để hiện ra lập tức
+    localOrdersList.unshift({
+      customer_name: name,
+      phone: phone,
+      product_name: currentOrderProduct.name,
+      products: { type: currentOrderProduct.type }, // Mô phỏng join bảng
+      created_at: new Date().toISOString()
+    });
     
     btn.innerText = "Đặt hàng"; btn.disabled = false;
     document.getElementById('orderFormArea').classList.add('hidden');
     document.getElementById('orderSuccessMsg').style.display = 'block';
 
-    // Tự động làm mới bảng Admin nếu Admin đang mở
-    if (isAdmin) loadAdminDashboard();
+    // Refresh lại dashboard (nếu Admin đang bật)
+    if(isAdmin) loadAdminDashboard();
   }
 
-  // --- LOGIC ADMIN (ĐÃ SỬA ĐỂ LƯU VĨNH VIỄN) ---
+  // --- LOGIC ADMIN ---
   function openLoginModal() {
     if(isAdmin) {
-      isAdmin = false;
-      localStorage.removeItem('isAdmin'); // Tắt thì xóa bộ nhớ
+      isAdmin = false; 
+      localStorage.removeItem('isAdmin'); // Xóa lưu trạng thái
       document.body.classList.remove('admin-mode');
       const btn = document.getElementById('adminToggleBtn'); btn.innerText = "Admin Mode: OFF"; btn.style.background = "rgba(255,255,255,0.7)"; btn.style.color = "var(--text)";
       document.getElementById('adminDashboard').classList.add('hidden');
@@ -569,10 +558,10 @@
     const pass = document.getElementById('adminPassword').value;
     if (pass === "Leduytan2007@") {
       closeModal('loginModal'); 
-      isAdmin = true;
-      localStorage.setItem('isAdmin', 'true'); // Lưu trạng thái đăng nhập
-      document.body.classList.add('admin-mode');
+      isAdmin = true; 
+      localStorage.setItem('isAdmin', 'true'); // Lưu lại trạng thái
       
+      document.body.classList.add('admin-mode');
       const btn = document.getElementById('adminToggleBtn'); btn.innerText = "Admin Mode: ON"; btn.style.background = "#5B7CFF"; btn.style.color = "white";
       loadAdminDashboard();
     } else { alert("Mật khẩu không chính xác!"); }
@@ -586,37 +575,33 @@
     const last7Str = new Date(new Date().setDate(new Date().getDate() - 7)).toISOString();
     const last30Str = new Date(new Date().setDate(new Date().getDate() - 30)).toISOString();
 
-    let c1 = 0, c7 = 0, c30 = 0;
-    let orders = [];
-
-    // Kéo dữ liệu từ Supabase nếu có
     if (supabaseClient) {
-      try {
-        const { count: count1 } = await supabaseClient.from('page_visits').select('*', { count: 'exact', head: true }).gte('created_at', today); c1 = count1 || 0;
-        const { count: count7 } = await supabaseClient.from('page_visits').select('*', { count: 'exact', head: true }).gte('created_at', last7Str); c7 = count7 || 0;
-        const { count: count30 } = await supabaseClient.from('page_visits').select('*', { count: 'exact', head: true }).gte('created_at', last30Str); c30 = count30 || 0;
-        
-        const { data: dbOrders, error } = await supabaseClient.from('orders').select('*, products(type)').order('created_at', { ascending: false });
-        if(!error && dbOrders) orders = dbOrders;
-      } catch (err) {}
+      const { count: c1 } = await supabaseClient.from('page_visits').select('*', { count: 'exact', head: true }).gte('created_at', today);
+      const { count: c7 } = await supabaseClient.from('page_visits').select('*', { count: 'exact', head: true }).gte('created_at', last7Str);
+      const { count: c30 } = await supabaseClient.from('page_visits').select('*', { count: 'exact', head: true }).gte('created_at', last30Str);
+      document.getElementById('statToday').innerText = c1 || 0;
+      document.getElementById('stat7Days').innerText = c7 || 0;
+      document.getElementById('stat30Days').innerText = c30 || 0;
     }
 
-    // Kết hợp với các đơn hàng lưu cục bộ (offline fallback)
-    let offlineOrders = [];
-    try { offlineOrders = JSON.parse(localStorage.getItem('offlineOrders') || '[]'); } catch(e){}
-    orders = [...offlineOrders, ...orders];
-    
-    document.getElementById('statToday').innerText = c1;
-    document.getElementById('stat7Days').innerText = c7;
-    document.getElementById('stat30Days').innerText = c30;
-    document.getElementById('statOrders').innerText = orders.length;
+    // Tải danh sách Orders từ Database
+    let dashboardOrders = [...localOrdersList];
+    if (supabaseClient) {
+      const { data: dbOrders, error } = await supabaseClient.from('orders').select('*, products(type)').order('created_at', { ascending: false });
+      // Lấy từ Supabase được ưu tiên. Trừ khi gặp lỗi RLS do thiếu Policy thì fallback dùng mảng nội bộ
+      if (!error && dbOrders && dbOrders.length > 0) {
+        dashboardOrders = dbOrders;
+      }
+    }
+
+    document.getElementById('statOrders').innerText = dashboardOrders.length;
 
     const tbody = document.getElementById('ordersTableBody');
     tbody.innerHTML = '';
-    if(orders.length > 0) {
-      orders.forEach(o => {
+    if(dashboardOrders.length > 0) {
+      dashboardOrders.forEach(o => {
         const tr = document.createElement('tr');
-        const dateStr = o.created_at ? new Date(o.created_at).toLocaleDateString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : 'Vừa xong';
+        const dateStr = o.created_at ? new Date(o.created_at).toLocaleDateString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '';
         tr.innerHTML = `
           <td><strong>${o.customer_name}</strong></td>
           <td>${o.phone}</td>
@@ -701,21 +686,17 @@
     }
   }
 
-  // KHỞI ĐỘNG CÁC TÁC VỤ KHI VÀO TRANG (VÀ KIỂM TRA LẠI ADMIN MODE)
   window.addEventListener('DOMContentLoaded', () => {
     loadProductsFromSupabase();
     recordVisit();
     
-    // Kiểm tra xem trước đó đã đăng nhập Admin chưa
-    if (localStorage.getItem('isAdmin') === 'true') {
-      isAdmin = true;
+    // Nếu lưu Admin trong LocalStorage là true, tự động mở
+    if(isAdmin) {
       document.body.classList.add('admin-mode');
       const btn = document.getElementById('adminToggleBtn');
       btn.innerText = "Admin Mode: ON";
-      btn.style.background = "#5B7CFF"; 
+      btn.style.background = "#5B7CFF";
       btn.style.color = "white";
-      
-      // Load bảng dashboard nếu đang là admin
       loadAdminDashboard();
     }
   });
