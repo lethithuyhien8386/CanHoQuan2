@@ -592,14 +592,16 @@
     }
   }
 
-  // Init
-  renderProducts();
+// Init
+  // renderProducts(); <-- Đã comment lại để chuyển sang dùng Data từ Supabase
+</script> <!-- Bạn đã bị thiếu thẻ đóng script này -->
+
 <!-- Load thư viện Supabase JS từ CDN -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
-  // KHỞI TẠO SUPABASE (Thay bằng thông tin của bạn)
-  const SUPABASE_URL = 'https://zaufgjmwglhnptfdpxlr.supabase.co/rest/v1/';
+  // KHỞI TẠO SUPABASE (Đã xóa phần /rest/v1/ ở cuối link)
+  const SUPABASE_URL = 'https://zaufgjmwglhnptfdpxlr.supabase.co';
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InphdWZnam13Z2xobnB0ZmRweGxyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzMDU5MTMsImV4cCI6MjEwNDg4MTkxM30.JYzsxBCaLOHq21O7MTs8qICWxj5oimOvDHaX9tOTjm4';
   const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -608,22 +610,41 @@
   // 1. Hàm Load Sản phẩm
   async function loadProductsFromSupabase() {
     let { data, error } = await supabase.from('products').select('*');
-    if(error) console.error(error);
-    else {
+    if(error) {
+      console.error("Lỗi tải dữ liệu:", error);
+    } else {
       products = data; 
       renderProducts(); // Render lại giao diện sau khi tải data
     }
   }
-  // Gọi hàm này khi khởi động web thay vì dùng mảng dữ liệu mẫu
-  // loadProductsFromSupabase();
+  
+  // Gọi hàm này khi khởi động web để lấy dữ liệu thực tế từ Database
+  loadProductsFromSupabase();
 
-  // 2. Hàm Thêm Đơn Hàng
+  // 2. Hàm Thêm Đơn Hàng (Đã liên kết với nút Đặt Hàng)
   async function insertOrder(name, phone, product) {
     const { error } = await supabase.from('orders').insert([
       { customer_name: name, phone: phone, product_id: product.id, product_name: product.name }
     ]);
+    if(error) console.error("Lỗi đặt hàng:", error);
   }
-</script>
+
+  // Cập nhật lại hàm submitOrder để gọi lên Supabase
+  async function submitOrder() {
+    const name = document.getElementById('customerName').value;
+    const phone = document.getElementById('customerPhone').value;
+    
+    if(!name || !phone) { 
+        alert("Vui lòng điền đủ họ tên và số điện thoại!"); 
+        return; 
+    }
+    
+    // Đẩy dữ liệu lên bảng Orders
+    await insertOrder(name, phone, currentOrderProduct);
+
+    document.getElementById('orderFormArea').classList.add('hidden');
+    document.getElementById('orderSuccessMsg').style.display = 'block';
+  }
 </script>
 </body>
 </html>
