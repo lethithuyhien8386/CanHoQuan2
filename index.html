@@ -461,7 +461,7 @@
 
 <script>
   let products = [];
-  let isLoading = true; 
+  let isLoading = false; 
   let currentFilterType = 'Mua'; 
   let currentOrderProduct = null;
   let currentLightboxIndex = 0; 
@@ -481,25 +481,40 @@
     }
   } catch (error) { console.warn("Lỗi khởi tạo Supabase:", error); }
 
+  // CƠ CHẾ CACHE STALE-WHILE-REVALIDATE GIÚP LOAD TỐC ĐỘ BÀN THỜ
   async function loadProductsFromSupabase() {
-    isLoading = true;
-    renderProducts(); 
+    // 1. Tải nhanh từ LocalStorage (Cache) nếu có để hiển thị ngay lập tức
+    const cachedProducts = localStorage.getItem('cached_products');
+    if (cachedProducts) {
+      try {
+        products = JSON.parse(cachedProducts);
+        isLoading = false;
+        renderProducts(); // Render bằng dữ liệu cũ mượt mà, không gián đoạn
+      } catch(e){}
+    } else {
+      isLoading = true; // Chỉ hiện UI Loading nếu lần đầu tiên truy cập chưa có cache
+      renderProducts(); 
+    }
 
+    // 2. Fetch data mới từ Supabase (Đồng bộ chạy ngầm)
     if (supabaseClient) {
       try {
         let { data, error } = await supabaseClient.from('products').select('*').order('created_at', { ascending: false });
         if (!error && data) { 
             products = data; 
-        } else {
-            products = []; // Xóa fallback mặc định
+            localStorage.setItem('cached_products', JSON.stringify(products)); // Lưu Cache mới
+        } else if (!cachedProducts) {
+            products = [];
         }
-      } catch (err) { products = []; }
-    } else {
-        products = []; 
+      } catch (err) {
+        if (!cachedProducts) products = [];
+      }
+    } else if (!cachedProducts) {
+        products = [];
     }
     
     isLoading = false;
-    renderProducts(); 
+    renderProducts(); // Cập nhật lại giao diện với dữ liệu thật mới nhất (nếu có khác biệt)
   }
 
   async function recordVisit() {
@@ -556,7 +571,7 @@
 
     grid.innerHTML = '';
     if (filtered.length === 0) {
-      grid.innerHTML = '<p style="grid-column:1/-1; text-align:center; color:var(--muted)">Không tìm thấy sản phẩm nào. Xin vui lòng tải lại trang để dữ liệu tái cập nhật</p>';
+      grid.innerHTML = '<p style="grid-column:1/-1; text-align:center; color:var(--muted)">Không tìm thấy sản phẩm nào.</p>';
       return;
     }
 
@@ -750,52 +765,57 @@
   async function loadAdminDashboard() {
     document.getElementById('adminDashboard').classList.remove('hidden');
     
-    const now = new Date();
-    const today = new Date(now.setHours(0,0,0,0)).toISOString();
-    const last7Str = new Date(new Date().setDate(new Date().getDate() - 7)).toISOString();
-    const last30Str = new Date(new Date().setDate(new Date().getDate() - 30)).toISOString();
+    try {
+      const today = new Date(new Date().setHours(0,0,0,0)).toISOString();
+      const last7Str = new Date(new Date().setDate(new Date().getDate() - 7)).toISOString();
+      const last30Str = new Date(new Date().setDate(new Date().getDate() - 30)).toISOString();
 
-    if (supabaseClient) {
-      const { count: c1 } = await supabaseClient.from('page_visits').select('*', { count: 'exact', head: true }).gte('created_at', today);
-      const { count: c7 } = await supabaseClient.from('page_visits').select('*', { count: 'exact', head: true }).gte('created_at', last7Str);
-      const { count: c30 } = await supabaseClient.from('page_visits').select('*', { count: 'exact', head: true }).gte('created_at', last30Str);
-      document.getElementById('statToday').innerText = c1 || 0;
-      document.getElementById('stat7Days').innerText = c7 || 0;
-      document.getElementById('stat30Days').innerText = c30 || 0;
-    }
-
-    let dashboardOrders = [...localOrdersList];
-    if (supabaseClient) {
-      const { data: dbOrders, error } = await supabaseClient.from('orders').select('*, products(type)').order('created_at', { ascending: false });
-      if (!error && dbOrders) {
-        dashboardOrders = dbOrders;
-        localOrdersList = dbOrders; 
+      if (supabaseClient) {
+        const [res1, res7, res30] = await Promise.all([
+          supabaseClient.from('page_visits').select('*', { count: 'exact', head: true }).gte('created_at', today),
+          supabaseClient.from('page_visits').select('*', { count: 'exact', head: true }).gte('created_at', last7Str),
+          supabaseClient.from('page_visits').select('*', { count: 'exact', head: true }).gte('created_at', last30Str)
+        ]);
+        document.getElementById('statToday').innerText = res1.count || 0;
+        document.getElementById('stat7Days').innerText = res7.count || 0;
+        document.getElementById('stat30Days').innerText = res30.count || 0;
       }
-    }
+    } catch(e) { console.warn(e); }
 
-    document.getElementById('statOrders').innerText = dashboardOrders.length;
-    const tbody = document.getElementById('ordersTableBody');
-    tbody.innerHTML = '';
-    
-    if(dashboardOrders.length > 0) {
-      dashboardOrders.forEach(o => {
-        const tr = document.createElement('tr');
-        if (o.status) tr.classList.add('row-processed');
-        const dateStr = o.created_at ? new Date(o.created_at).toLocaleDateString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '';
-        
-        tr.innerHTML = `
-          <td style="text-align: center;">
-            <input type="checkbox" style="width:18px; height:18px; cursor:pointer;" ${o.status ? 'checked' : ''} onchange="toggleOrderStatus(${o.id}, this.checked, this)">
-          </td>
-          <td><strong>${o.customer_name}</strong></td>
-          <td>${o.phone}</td>
-          <td><span style="background:${o.products?.type === 'Mua' ? 'var(--blue)' : 'var(--violet)'}; color:white; padding: 4px 8px; border-radius: 6px; font-size:12px;">${o.products?.type || 'Không rõ'}</span></td>
-          <td>${o.product_name}</td>
-          <td>${dateStr}</td>
-        `;
-        tbody.appendChild(tr);
-      });
-    } else { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Chưa có đơn hàng nào</td></tr>'; }
+    try {
+      let dashboardOrders = [...localOrdersList];
+      if (supabaseClient) {
+        const { data: dbOrders, error } = await supabaseClient.from('orders').select('*, products(type)').order('created_at', { ascending: false });
+        if (!error && dbOrders) {
+          dashboardOrders = dbOrders;
+          localOrdersList = dbOrders; 
+        }
+      }
+
+      document.getElementById('statOrders').innerText = dashboardOrders.length;
+      const tbody = document.getElementById('ordersTableBody');
+      tbody.innerHTML = '';
+      
+      if(dashboardOrders.length > 0) {
+        dashboardOrders.forEach(o => {
+          const tr = document.createElement('tr');
+          if (o.status) tr.classList.add('row-processed');
+          const dateStr = o.created_at ? new Date(o.created_at).toLocaleDateString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '';
+          
+          tr.innerHTML = `
+            <td style="text-align: center;">
+              <input type="checkbox" style="width:18px; height:18px; cursor:pointer;" ${o.status ? 'checked' : ''} onchange="toggleOrderStatus(${o.id}, this.checked, this)">
+            </td>
+            <td><strong>${o.customer_name}</strong></td>
+            <td>${o.phone}</td>
+            <td><span style="background:${o.products?.type === 'Mua' ? 'var(--blue)' : 'var(--violet)'}; color:white; padding: 4px 8px; border-radius: 6px; font-size:12px;">${o.products?.type || 'Không rõ'}</span></td>
+            <td>${o.product_name}</td>
+            <td>${dateStr}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+      } else { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Chưa có đơn hàng nào</td></tr>'; }
+    } catch(e) { console.warn(e); }
   }
 
   const imgInput = document.getElementById('adminImgFiles');
@@ -818,7 +838,7 @@
       document.getElementById('adminType').value = p.type;
       document.getElementById('adminName').value = p.name;
       
-      // Khôi phục giá tiền định dạng dấu chấm
+      // Hiển thị giá với định dạng có dấu chấm dễ nhìn
       document.getElementById('adminPrice').value = p.price ? p.price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".") : '';
       
       document.getElementById('adminDistrict').value = p.district || '';
@@ -838,7 +858,7 @@
     const id = document.getElementById('editProductId').value;
     const type = document.getElementById('adminType').value; const name = document.getElementById('adminName').value;
     
-    // Loại bỏ dấu chấm trước khi parse sang số nguyên
+    // Xóa dấu chấm trước khi tính toán để lưu DB
     const priceStr = document.getElementById('adminPrice').value.replace(/\./g, '');
     const price = parseInt(priceStr, 10);
     
@@ -846,35 +866,52 @@
     const desc = document.getElementById('adminDesc').value;
     let images = uploadedTempImages.length > 0 ? uploadedTempImages : ['https://via.placeholder.com/400x300?text=No+Image'];
 
-    if(!name || !price) { alert("Vui lòng nhập tên và giá!"); return; }
+    if(!name || !price) { alert("Vui lòng nhập tên và giá hợp lệ!"); return; }
 
     const btn = document.getElementById('btnSaveProduct'); btn.innerText = "Đang lưu..."; btn.disabled = true;
 
-    if (supabaseClient) {
-      if (id) { await supabaseClient.from('products').update({ type: type, name: name, price: price, district: district, images: images, description: desc }).eq('id', id); } 
-      else { await supabaseClient.from('products').insert([{ type: type, name: name, price: price, district: district, images: images, description: desc }]); }
+    let newProduct = { type: type, name: name, price: price, district: district, images: images, description: desc };
+
+    // Cập nhật Optimistic UI - Áp dụng vào mảng và cache ngay lập tức để người dùng thấy ngay
+    if (id) {
+      const idx = products.findIndex(p => p.id == id);
+      if(idx !== -1) products[idx] = { id: parseInt(id), ...newProduct };
     } else {
-      if (id) {
-        const idx = products.findIndex(p => p.id == id);
-        if(idx !== -1) products[idx] = { id: parseInt(id), type, name, price, district, images, description: desc };
-      } else {
-        const newId = products.length > 0 ? Math.max(...products.map(p => p.id)) + 1 : 1;
-        products.unshift({ id: newId, type, name, price, district, images, description: desc });
-      }
+      newProduct.id = Date.now(); // ID tạm
+      products.unshift(newProduct);
+    }
+    localStorage.setItem('cached_products', JSON.stringify(products));
+    renderProducts();
+
+    // Chạy ngầm lên Database
+    if (supabaseClient) {
+      try {
+        if (id) { 
+           await supabaseClient.from('products').update(newProduct).eq('id', id); 
+        } else { 
+           // Xóa ID tạm để Postgres tự sinh
+           delete newProduct.id;
+           await supabaseClient.from('products').insert([newProduct]); 
+        }
+      } catch (e) { console.warn(e); }
     }
     
     btn.innerText = "Lưu Sản Phẩm"; btn.disabled = false; closeModal('adminModal');
     
+    // Đồng bộ lại ID chuẩn từ server sau khi lưu xong (chạy ngầm, ko gián đoạn)
     loadProductsFromSupabase();
   }
 
   async function deleteProduct(id) {
     if(confirm("Bạn có chắc chắn muốn xóa sản phẩm này?")) {
+      // Cập nhật Optimistic UI (Xóa hiển thị lập tức)
+      products = products.filter(x => x.id != id); 
+      localStorage.setItem('cached_products', JSON.stringify(products));
+      renderProducts();
+
+      // Đồng bộ DB ngầm
       if (supabaseClient) {
-        await supabaseClient.from('products').delete().eq('id', id);
-        loadProductsFromSupabase();
-      } else {
-        products = products.filter(x => x.id != id); renderProducts();
+        try { await supabaseClient.from('products').delete().eq('id', id); } catch(e){}
       }
     }
   }
