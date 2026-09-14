@@ -213,6 +213,20 @@
     }
     .hidden { display: none !important; }
 
+    /* HIỆU ỨNG LOADING SÓNG */
+    .wave-dots span {
+      display: inline-block;
+      animation: wave 1.2s infinite ease-in-out;
+      font-size: 1.2em;
+    }
+    .wave-dots span:nth-child(1) { animation-delay: 0s; }
+    .wave-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .wave-dots span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes wave {
+      0%, 60%, 100% { transform: translateY(0); }
+      30% { transform: translateY(-5px); }
+    }
+
     /* RESPONSIVE CHO ĐIỆN THOẠI & MÀN HÌNH NHỎ */
     @media (max-width: 768px) {
       .site { width: calc(100% - 20px); padding: 10px 0 40px; }
@@ -326,7 +340,11 @@
         <button class="admin-controls btn-buy" style="padding: 10px 20px; border-radius:12px; cursor:pointer; border:none;" onclick="openAdminModal()">+ Thêm Sản Phẩm Mới</button>
       </div>
       <div class="grid" id="productGrid">
-        <p style="grid-column:1/-1; text-align:center; color:var(--muted); font-weight:500; line-height:1.6;">Gian hàng đang được tải...<br>Chúng tôi đánh giá cao sự nhẫn nại của quý khách.<br>Cảm ơn quý khách rất nhiều.</p>
+        <!-- Khung loading ban đầu -->
+        <div style="grid-column: 1/-1; text-align: center; padding: 40px 20px; font-size: 15px; color: var(--muted); line-height: 1.8;">
+          Xin vui lòng chờ trong giây lát - Gian hàng đang được tải<span class="wave-dots"><span>.</span><span>.</span><span>.</span></span><br>
+          Chúng tôi đánh giá cao sự nhẫn nại của quý khách 🫶.<br>Cảm ơn quý khách rất nhiều 💙.
+        </div>
       </div>
     </div>
   </div>
@@ -441,14 +459,16 @@
 </div>
 
 <script>
-  let products = [
+  let fallbackProducts = [
     { id: 1, type: 'Mua', name: 'Biệt thự Vinhomes', price: 25000000000, district: 'Quận 9', images: ['https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=600'], description: 'Biệt thự cao cấp 3 tầng, sân vườn rộng.' },
     { id: 2, type: 'Thuê', name: 'Căn hộ Masteri', price: 15000000, district: 'Quận 2', images: ['https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=600'], description: 'Căn hộ 2 phòng ngủ, đầy đủ nội thất sang trọng.' }
   ];
+  
+  let products = [];
+  let isLoading = true; // Biến đánh dấu trạng thái đang tải dữ liệu
   let currentFilterType = 'Mua'; 
   let currentOrderProduct = null;
   let currentLightboxIndex = 0; 
-  let isDataLoading = true; // Cờ kiểm tra đang load dữ liệu
   let isAdmin = localStorage.getItem('isAdmin') === 'true';
   let uploadedTempImages = []; 
   let localOrdersList = [];
@@ -466,18 +486,24 @@
   } catch (error) { console.warn("Lỗi khởi tạo Supabase:", error); }
 
   async function loadProductsFromSupabase() {
-    isDataLoading = true;
-    renderProducts();
+    isLoading = true;
+    renderProducts(); // Render khung loading
 
     if (supabaseClient) {
       try {
         let { data, error } = await supabaseClient.from('products').select('*').order('created_at', { ascending: false });
-        if (!error && data) { products = data; }
-      } catch (err) {}
+        if (!error && data) { 
+            products = data; 
+        } else {
+            products = fallbackProducts; // Fallback khi lỗi
+        }
+      } catch (err) { products = fallbackProducts; }
+    } else {
+        products = fallbackProducts; // Fallback khi offline
     }
     
-    isDataLoading = false;
-    renderProducts(); 
+    isLoading = false;
+    renderProducts(); // Hiển thị sản phẩm thực tế
   }
 
   async function recordVisit() {
@@ -514,9 +540,14 @@
   function renderProducts() {
     const grid = document.getElementById('productGrid');
     
-    // NẾU ĐANG TẢI, HIỂN THỊ THÔNG BÁO VÀ DỪNG LẠI
-    if (isDataLoading) {
-      grid.innerHTML = '<p style="grid-column:1/-1; text-align:center; color:var(--muted); font-weight:500; line-height:1.6;">Gian hàng đang được tải.<br>Chúng tôi đánh giá cao sự nhẫn nại của quý khách.<br>Cảm ơn quý khách rất nhiều.</p>';
+    // NẾU ĐANG TẢI DỮ LIỆU, HIỂN THỊ KHUNG CHỜ
+    if (isLoading) {
+      grid.innerHTML = `
+        <div style="grid-column: 1/-1; text-align: center; padding: 40px 20px; font-size: 15px; color: var(--muted); line-height: 1.8;">
+          Xin vui lòng chờ trong giây lát - Gian hàng đang được tải<span class="wave-dots"><span>.</span><span>.</span><span>.</span></span><br>
+          Chúng tôi đánh giá cao sự nhẫn nại của quý khách 🫶.<br>Cảm ơn quý khách rất nhiều 💙.
+        </div>
+      `;
       return;
     }
 
@@ -636,6 +667,7 @@
   function openOrderFromDetail() { closeModal('detailModal'); openOrder(currentOrderProduct.id); }
   function closeModal(modalId) { document.getElementById(modalId).classList.remove('active'); }
 
+  // KIỂM TRA ĐIỀU KIỆN & MỞ MODAL XÁC NHẬN
   function submitOrder() {
     const name = document.getElementById('customerName').value.trim(); 
     const phone = document.getElementById('customerPhone').value.trim();
@@ -658,6 +690,7 @@
     document.getElementById('confirmModal').classList.add('active');
   }
 
+  // TIẾN HÀNH ĐẶT HÀNG CHÍNH THỨC VÀO CSDL
   async function confirmSubmitOrder() {
     const name = document.getElementById('customerName').value.trim(); 
     const phone = document.getElementById('customerPhone').value.trim();
@@ -830,7 +863,9 @@
     }
     
     btn.innerText = "Lưu Sản Phẩm"; btn.disabled = false; closeModal('adminModal');
-    if(supabaseClient) loadProductsFromSupabase(); else renderProducts();
+    
+    // Thay vì render trực tiếp, ta gọi hàm load từ Server
+    loadProductsFromSupabase();
   }
 
   async function deleteProduct(id) {
