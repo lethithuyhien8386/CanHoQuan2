@@ -326,7 +326,7 @@
         <button class="admin-controls btn-buy" style="padding: 10px 20px; border-radius:12px; cursor:pointer; border:none;" onclick="openAdminModal()">+ Thêm Sản Phẩm Mới</button>
       </div>
       <div class="grid" id="productGrid">
-        <p style="grid-column:1/-1; text-align:center; color:var(--muted)">Đang tải dữ liệu...</p>
+        <p style="grid-column:1/-1; text-align:center; color:var(--muted); font-weight:500; line-height:1.6;">Gian hàng đang được tải.<br>Chúng tôi đánh giá cao sự nhẫn nại của quý khách.<br>Cảm ơn quý khách rất nhiều.</p>
       </div>
     </div>
   </div>
@@ -448,6 +448,7 @@
   let currentFilterType = 'Mua'; 
   let currentOrderProduct = null;
   let currentLightboxIndex = 0; 
+  let isDataLoading = true; // Cờ kiểm tra đang load dữ liệu
   let isAdmin = localStorage.getItem('isAdmin') === 'true';
   let uploadedTempImages = []; 
   let localOrdersList = [];
@@ -465,12 +466,17 @@
   } catch (error) { console.warn("Lỗi khởi tạo Supabase:", error); }
 
   async function loadProductsFromSupabase() {
+    isDataLoading = true;
+    renderProducts();
+
     if (supabaseClient) {
       try {
         let { data, error } = await supabaseClient.from('products').select('*').order('created_at', { ascending: false });
-        if (!error && data && data.length > 0) { products = data; }
+        if (!error && data) { products = data; }
       } catch (err) {}
     }
+    
+    isDataLoading = false;
     renderProducts(); 
   }
 
@@ -507,6 +513,13 @@
 
   function renderProducts() {
     const grid = document.getElementById('productGrid');
+    
+    // NẾU ĐANG TẢI, HIỂN THỊ THÔNG BÁO VÀ DỪNG LẠI
+    if (isDataLoading) {
+      grid.innerHTML = '<p style="grid-column:1/-1; text-align:center; color:var(--muted); font-weight:500; line-height:1.6;">Gian hàng đang được tải.<br>Chúng tôi đánh giá cao sự nhẫn nại của quý khách.<br>Cảm ơn quý khách rất nhiều.</p>';
+      return;
+    }
+
     const sortVal = document.getElementById('sortPrice').value;
     const searchDist = document.getElementById('districtSearch').value.toLowerCase().trim();
     
@@ -623,7 +636,6 @@
   function openOrderFromDetail() { closeModal('detailModal'); openOrder(currentOrderProduct.id); }
   function closeModal(modalId) { document.getElementById(modalId).classList.remove('active'); }
 
-  // KIỂM TRA ĐIỀU KIỆN & MỞ MODAL XÁC NHẬN
   function submitOrder() {
     const name = document.getElementById('customerName').value.trim(); 
     const phone = document.getElementById('customerPhone').value.trim();
@@ -631,16 +643,14 @@
     
     if(!name || !phone) { alert("Vui lòng điền đủ họ tên và số điện thoại!"); return; }
     
-    // Kiểm tra định dạng số điện thoại (bắt đầu bằng 0, có đúng 10 chữ số)
     const phoneRegex = /^0\d{9}$/;
     if (!phoneRegex.test(phone)) {
       phoneWarning.style.display = 'block';
-      return; // Dừng lại, không cho đặt hàng
+      return; 
     } else {
       phoneWarning.style.display = 'none';
     }
     
-    // Truyền dữ liệu sang Modal Xác Nhận
     document.getElementById('confirmName').innerText = name;
     document.getElementById('confirmPhone').innerText = phone;
     document.getElementById('confirmProduct').innerText = currentOrderProduct.name;
@@ -648,7 +658,6 @@
     document.getElementById('confirmModal').classList.add('active');
   }
 
-  // TIẾN HÀNH ĐẶT HÀNG CHÍNH THỨC VÀO CSDL
   async function confirmSubmitOrder() {
     const name = document.getElementById('customerName').value.trim(); 
     const phone = document.getElementById('customerPhone').value.trim();
@@ -671,7 +680,6 @@
     
     btn.innerText = "Xác Nhận Đặt Hàng"; btn.disabled = false;
     
-    // Đóng modal xác nhận, ẩn form đặt hàng, hiện thông báo thành công
     closeModal('confirmModal');
     document.getElementById('orderFormArea').classList.add('hidden');
     document.getElementById('orderSuccessMsg').style.display = 'block';
