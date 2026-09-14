@@ -450,7 +450,8 @@
     <input type="hidden" id="editProductId">
     <div class="form-group"><label>Loại</label><select id="adminType"><option value="Mua">Bán (Mua)</option><option value="Thuê">Cho Thuê</option></select></div>
     <div class="form-group"><label>Tên BĐS</label><input type="text" id="adminName"></div>
-    <div class="form-group"><label>Giá (VNĐ - Nhập số)</label><input type="number" id="adminPrice"></div>
+    <!-- Áp dụng Regex tự động phân cách hàng nghìn bằng dấu chấm -->
+    <div class="form-group"><label>Giá (VNĐ - Nhập số)</label><input type="text" id="adminPrice" oninput="this.value = this.value.replace(/[^0-9]/g, '').replace(/\B(?=(\d{3})+(?!\d))/g, '.')"></div>
     <div class="form-group"><label>Quận/Huyện</label><input type="text" id="adminDistrict" placeholder="VD: Quận 1"></div>
     <div class="form-group"><label>Chọn Ảnh (Có thể chọn nhiều ảnh)</label><input type="file" id="adminImgFiles" multiple accept="image/*"></div>
     <div class="form-group"><label>Mô tả chi tiết</label><textarea id="adminDesc" rows="4"></textarea></div>
@@ -459,13 +460,8 @@
 </div>
 
 <script>
-  let fallbackProducts = [
-    { id: 1, type: 'Mua', name: 'Biệt thự Vinhomes', price: 25000000000, district: 'Quận 9', images: ['https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=600'], description: 'Biệt thự cao cấp 3 tầng, sân vườn rộng.' },
-    { id: 2, type: 'Thuê', name: 'Căn hộ Masteri', price: 15000000, district: 'Quận 2', images: ['https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=600'], description: 'Căn hộ 2 phòng ngủ, đầy đủ nội thất sang trọng.' }
-  ];
-  
   let products = [];
-  let isLoading = true; // Biến đánh dấu trạng thái đang tải dữ liệu
+  let isLoading = true; 
   let currentFilterType = 'Mua'; 
   let currentOrderProduct = null;
   let currentLightboxIndex = 0; 
@@ -487,7 +483,7 @@
 
   async function loadProductsFromSupabase() {
     isLoading = true;
-    renderProducts(); // Render khung loading
+    renderProducts(); 
 
     if (supabaseClient) {
       try {
@@ -495,15 +491,15 @@
         if (!error && data) { 
             products = data; 
         } else {
-            products = fallbackProducts; // Fallback khi lỗi
+            products = []; // Xóa fallback mặc định
         }
-      } catch (err) { products = fallbackProducts; }
+      } catch (err) { products = []; }
     } else {
-        products = fallbackProducts; // Fallback khi offline
+        products = []; 
     }
     
     isLoading = false;
-    renderProducts(); // Hiển thị sản phẩm thực tế
+    renderProducts(); 
   }
 
   async function recordVisit() {
@@ -540,7 +536,6 @@
   function renderProducts() {
     const grid = document.getElementById('productGrid');
     
-    // NẾU ĐANG TẢI DỮ LIỆU, HIỂN THỊ KHUNG CHỜ
     if (isLoading) {
       grid.innerHTML = `
         <div style="grid-column: 1/-1; text-align: center; padding: 40px 20px; font-size: 15px; color: var(--muted); line-height: 1.8;">
@@ -561,7 +556,7 @@
 
     grid.innerHTML = '';
     if (filtered.length === 0) {
-      grid.innerHTML = '<p style="grid-column:1/-1; text-align:center; color:var(--muted)">Không tìm thấy sản phẩm nào.</p>';
+      grid.innerHTML = '<p style="grid-column:1/-1; text-align:center; color:var(--muted)">Không tìm thấy sản phẩm nào. Xin vui lòng tải lại trang để dữ liệu tái cập nhật</p>';
       return;
     }
 
@@ -667,7 +662,6 @@
   function openOrderFromDetail() { closeModal('detailModal'); openOrder(currentOrderProduct.id); }
   function closeModal(modalId) { document.getElementById(modalId).classList.remove('active'); }
 
-  // KIỂM TRA ĐIỀU KIỆN & MỞ MODAL XÁC NHẬN
   function submitOrder() {
     const name = document.getElementById('customerName').value.trim(); 
     const phone = document.getElementById('customerPhone').value.trim();
@@ -690,7 +684,6 @@
     document.getElementById('confirmModal').classList.add('active');
   }
 
-  // TIẾN HÀNH ĐẶT HÀNG CHÍNH THỨC VÀO CSDL
   async function confirmSubmitOrder() {
     const name = document.getElementById('customerName').value.trim(); 
     const phone = document.getElementById('customerPhone').value.trim();
@@ -824,7 +817,10 @@
       document.getElementById('editProductId').value = p.id;
       document.getElementById('adminType').value = p.type;
       document.getElementById('adminName').value = p.name;
-      document.getElementById('adminPrice').value = p.price;
+      
+      // Khôi phục giá tiền định dạng dấu chấm
+      document.getElementById('adminPrice').value = p.price ? p.price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".") : '';
+      
       document.getElementById('adminDistrict').value = p.district || '';
       document.getElementById('adminDesc').value = p.description || '';
       uploadedTempImages = p.images ? [...p.images] : [];
@@ -841,7 +837,12 @@
   async function saveProduct() {
     const id = document.getElementById('editProductId').value;
     const type = document.getElementById('adminType').value; const name = document.getElementById('adminName').value;
-    const price = parseInt(document.getElementById('adminPrice').value); const district = document.getElementById('adminDistrict').value;
+    
+    // Loại bỏ dấu chấm trước khi parse sang số nguyên
+    const priceStr = document.getElementById('adminPrice').value.replace(/\./g, '');
+    const price = parseInt(priceStr, 10);
+    
+    const district = document.getElementById('adminDistrict').value;
     const desc = document.getElementById('adminDesc').value;
     let images = uploadedTempImages.length > 0 ? uploadedTempImages : ['https://via.placeholder.com/400x300?text=No+Image'];
 
@@ -864,7 +865,6 @@
     
     btn.innerText = "Lưu Sản Phẩm"; btn.disabled = false; closeModal('adminModal');
     
-    // Thay vì render trực tiếp, ta gọi hàm load từ Server
     loadProductsFromSupabase();
   }
 
